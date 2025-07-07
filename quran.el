@@ -40,6 +40,22 @@
                         (push `((sura . ,sura) (aya . ,aya) (text . ,text)) verses)))))
                 (nreverse verses)))))))
 
+(defvar quran--indexed-ayat nil
+  "Pre-indexed list of all ayat as strings for fast completion search.")
+
+(defun quran--index-verses ()
+  "Create pre-indexed ayah strings from `quran--verses`."
+  (quran--load-all-verses)
+  (setq quran--indexed-ayat
+        (mapcar (lambda (verse)
+                  (let ((sura (alist-get 'sura verse))
+                        (aya  (alist-get 'aya verse))
+                        (text (alist-get 'text verse)))
+                    (cons (format "📖 Surah %d Ayah %d: %s" sura aya text)
+                          verse)))
+                quran--verses)))
+                
+
 
 ;;;###autoload
 (defun quran-random-ayah ()
@@ -60,29 +76,23 @@
       (display-buffer (current-buffer)))))
 
 ;;;###autoload
-(defun quran-search (query)
-  "Search for QUERY in the Quran and display matching ayat."
-  (interactive "sSearch Quran: ")
-  (quran--load-all-verses)
-  (let ((matches
-         (seq-filter (lambda (verse)
-                       (string-match-p (regexp-quote query)
-                                       (alist-get 'text verse)))
-                     quran--verses)))
-    (if matches
-        (with-current-buffer (get-buffer-create "*Quran Search Results*")
-          (read-only-mode -1)
-          (erase-buffer)
-          (insert (format "🔍 Results for \"%s\": %d match(es)\n\n" query (length matches)))
-          (dolist (verse matches)
-            (insert (format "📖 Surah %d, Ayah %d\n%s\n\n"
-                            (alist-get 'sura verse)
-                            (alist-get 'aya  verse)
-                            (alist-get 'text verse))))
-          (goto-char (point-min))
-          (read-only-mode 1)
-          (display-buffer (current-buffer)))
-      (message "No verses found containing: %s" query))))
+(defun quran-search ()
+  "Fuzzy search ayat using completing-read and display selected one."
+  (interactive)
+  (quran--index-verses)
+  (let* ((selection (completing-read "Search Quran: " quran--indexed-ayat))
+         (verse (cdr (assoc selection quran--indexed-ayat)))
+         (sura  (alist-get 'sura verse))
+         (aya   (alist-get 'aya verse))
+         (text  (alist-get 'text verse)))
+    (with-current-buffer (get-buffer-create "*Quran Search Result*")
+      (read-only-mode -1)
+      (erase-buffer)
+      (insert (format "📖 Surah %d, Ayah %d\n\n%s" sura aya text))
+      (goto-char (point-min))
+      (read-only-mode 1)
+      (display-buffer (current-buffer)))))
+
 
 (provide 'quran)
 ;;; quran.el ends here
